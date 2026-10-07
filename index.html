@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tap to Review</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--ink:#0f1b2d;--mute:#5b6b80;--line:#dbe3ee;--acc:#0b8f7e;--accink:#fff;--star:#f5b301;--off:#cfd8e4;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1220;--card:#131c2e;--ink:#eaf0f8;--mute:#93a3b8;--line:#25324a;--acc:#2ec4ae;--accink:#06201b;--off:#2d3a52}}
+:root[data-theme="dark"]{--bg:#0b1220;--card:#131c2e;--ink:#eaf0f8;--mute:#93a3b8;--line:#25324a;--acc:#2ec4ae;--accink:#06201b;--off:#2d3a52}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 "Plus Jakarta Sans",system-ui,sans-serif}
+main{max-width:480px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:26px;line-height:1.2;font-weight:800;margin:8px 0 4px}
+h2{font-size:18px;margin:0 0 8px}
+p.sub{color:var(--mute);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input,textarea,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+textarea{min-height:76px;resize:vertical}
+button{font:inherit;cursor:pointer}
+.btn{display:block;width:100%;padding:14px;border:0;border-radius:12px;background:var(--acc);color:var(--accink);font-weight:800;margin-top:16px}
+.btn.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.stars{display:flex;justify-content:space-between;gap:4px;margin:14px 0}
+.stars button{flex:1;background:none;border:0;font-size:46px;line-height:1;color:var(--off);padding:4px 0}
+.stars button.on{color:var(--star)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:9px 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);font-weight:600;font-size:14px}
+.chip.on{background:var(--acc);color:var(--accink);border-color:var(--acc)}
+.rev{width:100%;text-align:left;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px;font-size:15px}
+.rev:hover{border-color:var(--acc)}
+.rev small{display:block;color:var(--acc);font-weight:800;margin-top:8px}
+.hide{display:none}
+.biz{color:var(--mute);font-weight:600;font-size:14px}
+#qr{display:flex;justify-content:center;padding:12px;background:#fff;border-radius:12px;margin-top:12px}
+.link{word-break:break-all;font-size:13px;color:var(--mute);background:var(--bg);padding:10px;border-radius:8px;margin-top:10px}
+.note{font-size:13px;color:var(--mute)}
+</style>
+</head>
+<body>
+<main>
+
+<!-- OWNER SETUP -->
+<section id="setup">
+  <p class="biz">For business owners</p>
+  <h1>Make your review link</h1>
+  <p class="sub">Fill this once. Print the QR or write the link on your NFC card. Customers who scan get ready-to-paste reviews.</p>
+  <div class="card">
+    <label for="name">Business name</label>
+    <input id="name" placeholder="e.g. Raja Cafe">
+    <label for="cat">What kind of business?</label>
+    <input id="cat" placeholder="e.g. cafe, salon, dental clinic">
+    <label for="svc">Your best services or products (comma separated)</label>
+    <textarea id="svc" placeholder="e.g. cold coffee, wood-fired pizza, rooftop seating"></textarea>
+    <label for="loc">Area / city (helps match your Google profile)</label>
+    <input id="loc" placeholder="e.g. C-Scheme, Jaipur">
+    <label for="lang">Review language</label>
+    <select id="lang"><option value="en">English</option><option value="hinglish">Hinglish</option><option value="hi">Hindi</option></select>
+    <label for="glink">Google review link</label>
+    <input id="glink" inputmode="url" placeholder="https://g.page/r/.../review">
+    <p class="note">Find it in Google Business Profile: Get more reviews, then Share review form.</p>
+    <button class="btn" id="make">Create link and QR</button>
+  </div>
+  <div class="card hide" id="out">
+    <h2>Your customer link</h2>
+    <div class="link" id="lnk"></div>
+    <div id="qr"></div>
+    <button class="btn" id="copyl">Copy link</button>
+    <button class="btn alt" id="prev">Preview as a customer</button>
+  </div>
+</section>
+
+<!-- CUSTOMER FLOW -->
+<section id="cust" class="hide">
+  <p class="biz" id="cbiz"></p>
+  <h1>How was your visit?</h1>
+  <p class="sub">Tap your rating. We will suggest a review you can post in two taps.</p>
+  <div class="stars" id="stars" role="radiogroup" aria-label="Rating"></div>
+
+  <div id="step2" class="hide">
+    <div class="card">
+      <h2 id="tagq">What stood out?</h2>
+      <div class="chips" id="chips"></div>
+    </div>
+    <h2>Pick a review</h2>
+    <div id="revs"></div>
+    <button class="btn alt" id="more">Show different reviews</button>
+    <p class="note">Tap a review. It is copied, then Google opens. Paste it, check the stars, and post. Edit the text to match your visit.</p>
+  </div>
+
+  <div id="done" class="card hide">
+    <h2>Copied!</h2>
+    <p>Opening Google reviews. If nothing opens, use the button below, then paste.</p>
+    <a class="btn" id="go" href="#" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">Open Google reviews</a>
+  </div>
+</section>
+
+</main>
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var q=new URLSearchParams(location.search);
+var cfg=null;
+if(q.get('b')&&q.get('g')){
+  cfg={b:q.get('b'),c:q.get('c')||'place',s:(q.get('s')||'').split('|').filter(Boolean),g:q.get('g'),l:q.get('l')||'en',p:q.get('p')||''};
+}
+var rating=0,tags=[];
+
+function pick(a){return a[Math.floor(Math.random()*a.length)]}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a}
+
+var TAGS={
+  service:['Service','the service was prompt and attentive','the service felt rushed and inattentive'],
+  quality:['Quality','the quality was excellent','the quality did not meet expectations'],
+  staff:['Staff','the staff were friendly and helpful','the staff could have been more helpful'],
+  price:['Value for money','the prices felt fair for what you get','it felt a bit overpriced for what we got'],
+  place:['Ambience','the place has a lovely, comfortable vibe','the place could be cleaner and more comfortable'],
+  speed:['Speed','everything was quick, with no long wait','we had to wait much longer than expected']
+};
+var OPEN={
+  hi:['Had a great experience at {b}.','Really happy with my visit to {b}.','Visited {b} recently and loved it.','Highly recommend {b}.','{b} is a solid choice in the city.'],
+  mid:['My visit to {b} was okay.','Mixed feelings about {b}.','{b} has potential, but it was an average visit.'],
+  low:['Disappointed with my visit to {b}.','My experience at {b} was below expectations.','Not a great visit to {b}.']
+};
+var CLOSE={
+  hi:['Will definitely be back.','Would happily recommend it to friends and family.','Keep it up, team!','Worth a visit.'],
+  mid:['With a few improvements this could be much better.','I may give it another try.','Decent, but there is room to improve.'],
+  low:['I hope the team takes this feedback on board.','I hope things improve soon.','Needs real improvement before I return.']
+};
+function bucket(r){return r>=4?'hi':(r==3?'mid':'low')}
+
+function build(len){
+  var k=bucket(rating),b=cfg.b,parts=[];
+  parts.push(pick(OPEN[k]).replace('{b}',b));
+  var sel=tags.length?shuffle(tags):shuffle(Object.keys(TAGS)).slice(0,2);
+  var take=len==1?1:(len==2?2:Math.min(3,sel.length||1));
+  var good=rating>=4,mid=rating==3;
+  for(var i=0;i<take&&i<sel.length;i++){
+    var t=TAGS[sel[i]];
+    parts.push(cap((good||mid&&i==0)?t[1]:t[2])+'.');
+  }
+  if(cfg.s.length&&rating>=3){
+    var sv=shuffle(cfg.s).slice(0,len==3?2:1);
+    parts.push((rating>=4?'Loved the ':'Tried the ')+sv.join(' and ')+'.');
+  }
+  if(len>=2)parts.push(pick(CLOSE[k]));
+  return parts.join(' ');
+}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+
+var reqId=0,tmr;
+function scheduleRevs(){clearTimeout(tmr);tmr=setTimeout(renderRevs,700)}
+function showRevs(list){
+  var box=$('revs');box.innerHTML='';
+  list.forEach(function(t){
+    var el=document.createElement('button');el.className='rev';el.textContent=t;
+    var sm=document.createElement('small');sm.textContent='Tap to copy and post';el.appendChild(sm);
+    el.addEventListener('click',function(){choose(t)});
+    box.appendChild(el);
+  });
+}
+function renderRevs(){
+  var id=++reqId;
+  $('revs').innerHTML='<p class="note">Writing reviews for you...</p>';
+  fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({b:cfg.b,c:cfg.c,s:cfg.s,p:cfg.p,l:cfg.l,r:rating,t:tags.map(function(k){return TAGS[k][0]})})})
+  .then(function(r){if(!r.ok)throw 0;return r.json()})
+  .then(function(d){if(id!==reqId)return;if(!d.reviews||!d.reviews.length)throw 0;showRevs(d.reviews)})
+  .catch(function(){if(id!==reqId)return;showRevs([build(1),build(2),build(3)])});
+}
+function renderChips(){
+  var good=rating>=4;
+  $('tagq').textContent=good?'What stood out?':'What could be better?';
+  var h='';
+  Object.keys(TAGS).forEach(function(k){h+='<button class="chip'+(tags.indexOf(k)>-1?' on':'')+'" data-k="'+k+'">'+TAGS[k][0]+'</button>'});
+  $('chips').innerHTML=h;
+  [].forEach.call(document.querySelectorAll('.chip'),function(el){
+    el.addEventListener('click',function(){
+      var k=el.getAttribute('data-k'),i=tags.indexOf(k);
+      if(i>-1)tags.splice(i,1);else tags.push(k);
+      renderChips();scheduleRevs();
+    });
+  });
+}
+function copy(text){
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(text).catch(function(){fallback(text)});
+  }catch(e){}
+  fallback(text);return Promise.resolve();
+}
+function fallback(text){
+  var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+  document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(e){}document.body.removeChild(ta);
+}
+function choose(text){
+  copy(text);
+  $('go').href=cfg.g;
+  $('done').classList.remove('hide');
+  $('done').scrollIntoView({behavior:'smooth'});
+  setTimeout(function(){try{window.open(cfg.g,'_blank','noopener')||(location.href=cfg.g)}catch(e){}},900);
+}
+function drawStars(){
+  var h='';
+  for(var i=1;i<=5;i++)h+='<button role="radio" aria-checked="'+(i==rating)+'" aria-label="'+i+' star'+(i>1?'s':'')+'" class="'+(i<=rating?'on':'')+'" data-r="'+i+'">&#9733;</button>';
+  $('stars').innerHTML=h;
+  [].forEach.call($('stars').children,function(el){
+    el.addEventListener('click',function(){
+      rating=+el.getAttribute('data-r');tags=[];
+      drawStars();$('step2').classList.remove('hide');$('done').classList.add('hide');
+      renderChips();renderRevs();
+    });
+  });
+}
+
+if(cfg){
+  $('setup').classList.add('hide');$('cust').classList.remove('hide');
+  $('cbiz').textContent=cfg.b;document.title=cfg.b+' - Review';
+  drawStars();
+  $('more').addEventListener('click',renderRevs);
+}
+
+/* owner setup */
+function makeLink(){
+  var n=$('name').value.trim(),g=$('glink').value.trim();
+  if(!n||!/^https?:\/\//.test(g)){alert('Add the business name and a valid Google review link (starts with https://).');return null}
+  var s=$('svc').value.split(',').map(function(x){return x.trim()}).filter(Boolean).join('|');
+  var base=location.origin+location.pathname;
+  return base+'?b='+encodeURIComponent(n)+'&c='+encodeURIComponent($('cat').value.trim())+'&s='+encodeURIComponent(s)+'&p='+encodeURIComponent($('loc').value.trim())+'&l='+$('lang').value+'&g='+encodeURIComponent(g);
+}
+var cur='';
+$('make').addEventListener('click',function(){
+  var u=makeLink();if(!u)return;cur=u;
+  $('out').classList.remove('hide');$('lnk').textContent=u;
+  $('qr').innerHTML='';
+  try{new QRCode($('qr'),{text:u,width:200,height:200,correctLevel:QRCode.CorrectLevel.L})}catch(e){$('qr').textContent='QR could not load. Use the link above.'}
+  $('out').scrollIntoView({behavior:'smooth'});
+});
+$('copyl').addEventListener('click',function(){copy(cur);$('copyl').textContent='Link copied'});
+$('prev').addEventListener('click',function(){window.open(cur,'_blank')});
+})();
+</script>
+</body>
+</html>
