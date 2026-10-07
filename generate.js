@@ -36,6 +36,7 @@ export default async function handler(req, res) {
   const name = clip(b.b, 80), cat = clip(b.c, 60), area = clip(b.p, 80);
   const services = (Array.isArray(b.s) ? b.s : []).slice(0, 10).map(x => clip(x, 50));
   const tags = (Array.isArray(b.t) ? b.t : []).slice(0, 6).map(x => clip(x, 30));
+  const allowed = (Array.isArray(b.a) ? b.a : []).slice(0, 8).map(x => clip(x, 30));
   const rating = Math.min(5, Math.max(1, parseInt(b.r) || 5));
   const lang = { hinglish: 'Hinglish (Hindi written in English letters, natural everyday style)', hi: 'Hindi (Devanagari)' }[b.l] || 'English';
   if (!name) return res.status(400).json({ error: 'missing business' });
@@ -52,7 +53,7 @@ Write 3 different review drafts in ${lang}, in first person, as the customer.
 Rules:
 - Tone must match ${rating} stars. For 1-3 stars be polite, specific to the selected topics, and honest; do not be abusive.
 - Draft 1: 1 sentence. Draft 2: 2 sentences. Draft 3: 3-4 sentences.
-- Only mention services or topics listed above. Do not invent names, prices, dates, staff names or offers.
+- Talk only about the listed services and these topics: ${tags.length ? tags.join(', ') : 'up to 2 of ' + (allowed.join(', ') || 'none')}. Do not bring up anything else (for example staff, ambience, price or waiting time) unless it is one of those topics.\n- Only mention services or topics listed above. Do not invent names, prices, dates, staff names or offers.
 - Each draft must sound different, natural, human. No hashtags, at most one emoji.
 Return exactly: ["draft1","draft2","draft3"]`;
 
