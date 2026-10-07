@@ -56,6 +56,15 @@ button{font:inherit;cursor:pointer}
     <input id="cat" placeholder="e.g. cafe, salon, dental clinic">
     <label for="svc">Your best services or products (comma separated)</label>
     <textarea id="svc" placeholder="e.g. cold coffee, wood-fired pizza, rooftop seating"></textarea>
+    <label for="topics">Topics customers can pick (comma separated)</label>
+    <input id="topics" value="Service, Quality, Value for money">
+    <div class="chips" style="margin-top:8px" id="presets">
+      <button type="button" class="chip" data-p="Food, Coffee, Taste, Ambience, Service, Value for money">Cafe</button>
+      <button type="button" class="chip" data-p="Nature, Effectiveness, Oil, Lep, Improvement">Ayurveda</button>
+      <button type="button" class="chip" data-p="Treatment, Doctor, Cleanliness, Waiting time, Results">Clinic</button>
+      <button type="button" class="chip" data-p="Haircut, Styling, Hygiene, Behaviour, Value for money">Salon</button>
+    </div>
+    <p class="note">Tap a preset or type your own. Customers will only see these topics, and the reviews will be written around them.</p>
     <label for="loc">Area / city (helps match your Google profile)</label>
     <input id="loc" placeholder="e.g. C-Scheme, Jaipur">
     <label for="lang">Review language</label>
@@ -106,10 +115,11 @@ var $=function(i){return document.getElementById(i)};
 var q=new URLSearchParams(location.search);
 var cfg=null;
 if(q.get('b')&&q.get('g')){
-  cfg={b:q.get('b'),c:q.get('c')||'place',s:(q.get('s')||'').split('|').filter(Boolean),g:q.get('g'),l:q.get('l')||'en',p:q.get('p')||''};
+  cfg={b:q.get('b'),c:q.get('c')||'place',s:(q.get('s')||'').split('|').filter(Boolean),g:q.get('g'),l:q.get('l')||'en',p:q.get('p')||'',k:q.has('k')?(q.get('k')||'').split('|').filter(Boolean):['Service','Quality','Value for money']};
 }
 var rating=0,tags=[];
 
+function allowed(){return cfg.k}
 function pick(a){return a[Math.floor(Math.random()*a.length)]}
 function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a}
 
@@ -136,12 +146,11 @@ function bucket(r){return r>=4?'hi':(r==3?'mid':'low')}
 function build(len){
   var k=bucket(rating),b=cfg.b,parts=[];
   parts.push(pick(OPEN[k]).replace('{b}',b));
-  var sel=tags.length?shuffle(tags):shuffle(Object.keys(TAGS)).slice(0,2);
+  var sel=tags.length?shuffle(tags):shuffle(allowed()).slice(0,2);
   var take=len==1?1:(len==2?2:Math.min(3,sel.length||1));
   var good=rating>=4,mid=rating==3;
   for(var i=0;i<take&&i<sel.length;i++){
-    var t=TAGS[sel[i]];
-    parts.push(cap((good||mid&&i==0)?t[1]:t[2])+'.');
+    parts.push(cap(phrase(sel[i],good||mid&&i==0))+'.');
   }
   if(cfg.s.length&&rating>=3){
     var sv=shuffle(cfg.s).slice(0,len==3?2:1);
@@ -149,6 +158,10 @@ function build(len){
   }
   if(len>=2)parts.push(pick(CLOSE[k]));
   return parts.join(' ');
+}
+function phrase(l,good){
+  var x=l.toLowerCase();
+  return good?pick(['the '+x+' was really good','I loved the '+x,'the '+x+' exceeded my expectations']):pick(['the '+x+' could be better','I expected better '+x,'the '+x+' needs improvement']);
 }
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
 
@@ -166,24 +179,24 @@ function showRevs(list){
 function renderRevs(){
   var id=++reqId;
   $('revs').innerHTML='<p class="note">Writing reviews for you...</p>';
-  fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({b:cfg.b,c:cfg.c,s:cfg.s,p:cfg.p,l:cfg.l,r:rating,t:tags.map(function(k){return TAGS[k][0]})})})
+  fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({b:cfg.b,c:cfg.c,s:cfg.s,p:cfg.p,l:cfg.l,r:rating,t:tags,a:allowed()})})
   .then(function(r){if(!r.ok)throw 0;return r.json()})
   .then(function(d){if(id!==reqId)return;if(!d.reviews||!d.reviews.length)throw 0;showRevs(d.reviews)})
   .catch(function(){if(id!==reqId)return;showRevs([build(1),build(2),build(3)])});
 }
 function renderChips(){
-  var good=rating>=4;
-  $('tagq').textContent=good?'What stood out?':'What could be better?';
-  var h='';
-  Object.keys(TAGS).forEach(function(k){h+='<button class="chip'+(tags.indexOf(k)>-1?' on':'')+'" data-k="'+k+'">'+TAGS[k][0]+'</button>'});
-  $('chips').innerHTML=h;
-  [].forEach.call(document.querySelectorAll('.chip'),function(el){
+  $('tagq').textContent=rating>=4?'What stood out?':'What could be better?';
+  var box=$('chips');box.innerHTML='';
+  allowed().forEach(function(k){
+    var el=document.createElement('button');el.className='chip'+(tags.indexOf(k)>-1?' on':'');el.textContent=k;
     el.addEventListener('click',function(){
-      var k=el.getAttribute('data-k'),i=tags.indexOf(k);
+      var i=tags.indexOf(k);
       if(i>-1)tags.splice(i,1);else tags.push(k);
       renderChips();scheduleRevs();
     });
+    box.appendChild(el);
   });
+  if(!allowed().length)box.parentNode.classList.add('hide');
 }
 function copy(text){
   try{
@@ -228,8 +241,11 @@ function makeLink(){
   if(!n||!/^https?:\/\//.test(g)){alert('Add the business name and a valid Google review link (starts with https://).');return null}
   var s=$('svc').value.split(',').map(function(x){return x.trim()}).filter(Boolean).join('|');
   var base=location.origin+location.pathname;
-  return base+'?b='+encodeURIComponent(n)+'&c='+encodeURIComponent($('cat').value.trim())+'&s='+encodeURIComponent(s)+'&p='+encodeURIComponent($('loc').value.trim())+'&l='+$('lang').value+'&g='+encodeURIComponent(g);
+  return base+'?b='+encodeURIComponent(n)+'&c='+encodeURIComponent($('cat').value.trim())+'&s='+encodeURIComponent(s)+'&p='+encodeURIComponent($('loc').value.trim())+'&k='+encodeURIComponent($('topics').value.split(',').map(function(x){return x.trim()}).filter(Boolean).slice(0,8).join('|'))+'&l='+$('lang').value+'&g='+encodeURIComponent(g);
 }
+[].forEach.call(document.querySelectorAll('#presets .chip'),function(el){
+  el.addEventListener('click',function(){$('topics').value=el.getAttribute('data-p')});
+});
 var cur='';
 $('make').addEventListener('click',function(){
   var u=makeLink();if(!u)return;cur=u;
