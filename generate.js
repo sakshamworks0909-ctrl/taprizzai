@@ -1,5 +1,5 @@
 // Vercel serverless function: generates 3 review suggestions with Claude.
-// Env vars: ANTHROPIC_API_KEY (required), GOOGLE_PLACES_API_KEY (optional), MODEL (optional)
+// Env vars: GEMINI_API_KEY (free tier) OR ANTHROPIC_API_KEY (paid). Optional: GOOGLE_PLACES_API_KEY, MODEL
 const cache = new Map();
 const clip = (s, n) => String(s || '').slice(0, n);
 
@@ -29,8 +29,8 @@ async function lookupPlace(name, area) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
+  const gKey = process.env.GEMINI_API_KEY, aKey = process.env.ANTHROPIC_API_KEY;
+  if (!gKey && !aKey) return res.status(500).json({ error: 'API key missing' });
 
   const b = req.body || {};
   const name = clip(b.b, 80), cat = clip(b.c, 60), area = clip(b.p, 80);
@@ -57,17 +57,34 @@ Rules:
 Return exactly: ["draft1","draft2","draft3"]`;
 
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: process.env.MODEL || 'claude-haiku-4-5-20251001',
-        max_tokens: 700, temperature: 1, system,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const d = await r.json();
-    const text = (d.content || []).map(c => c.text || '').join('').replace(/```json|```/g, '').trim();
+    let text = '';
+    if (gKey) {
+      const model = process.env.MODEL || 'gemini-2.5-flash';
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': gKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 1, maxOutputTokens: 1500, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } }
+        })
+      });
+      const d = await r.json();
+      text = (d.candidates?.[0]?.content?.parts || []).map(c => c.text || '').join('');
+    } else {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': aKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: process.env.MODEL || 'claude-haiku-4-5-20251001',
+          max_tokens: 700, temperature: 1, system,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      const d = await r.json();
+      text = (d.content || []).map(c => c.text || '').join('');
+    }
+    text = text.replace(/```json|```/g, '').trim();
     const reviews = JSON.parse(text).filter(x => typeof x === 'string').slice(0, 3);
     if (!reviews.length) throw new Error('empty');
     res.setHeader('Cache-Control', 'no-store');
